@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdbool.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,7 +42,9 @@
 
 /* Private variables ---------------------------------------------------------*/
 osThreadId defaultTaskHandle;
-osThreadId Led_BlinkHandle;
+osThreadId usedTask1Handle;
+osThreadId usedTask2Handle;
+osMessageQId msg_queueHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -51,7 +53,8 @@ osThreadId Led_BlinkHandle;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 void StartDefaultTask(void const * argument);
-void Led_Blinky(void const * argument);
+void used_task1(void const * argument);
+void used_task2(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -59,7 +62,7 @@ void Led_Blinky(void const * argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+uint8_t suspendCount = 0;
 /* USER CODE END 0 */
 
 /**
@@ -107,6 +110,11 @@ int main(void)
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
+  /* Create the queue(s) */
+  /* definition and creation of msg_queue */
+  osMessageQDef(msg_queue, 5, uint32_t);
+  msg_queueHandle = osMessageCreate(osMessageQ(msg_queue), NULL);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -116,9 +124,13 @@ int main(void)
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
-  /* definition and creation of Led_Blink */
-  osThreadDef(Led_Blink, Led_Blinky, osPriorityNormal, 0, 128);
-  Led_BlinkHandle = osThreadCreate(osThread(Led_Blink), NULL);
+  /* definition and creation of usedTask1 */
+  osThreadDef(usedTask1, used_task1, osPriorityNormal, 0, 128);
+  usedTask1Handle = osThreadCreate(osThread(usedTask1), NULL);
+
+  /* definition and creation of usedTask2 */
+  osThreadDef(usedTask2, used_task2, osPriorityNormal, 0, 128);
+  usedTask2Handle = osThreadCreate(osThread(usedTask2), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -229,24 +241,46 @@ void StartDefaultTask(void const * argument)
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_Led_Blinky */
+/* USER CODE BEGIN Header_used_task1 */
 /**
-* @brief Function implementing the Led_Blink thread.
+* @brief Function implementing the usedTask1 thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_Led_Blinky */
-void Led_Blinky(void const * argument)
+/* USER CODE END Header_used_task1 */
+void used_task1(void const * argument)
 {
-  /* USER CODE BEGIN Led_Blinky */
+  /* USER CODE BEGIN used_task1 */
   /* Infinite loop */
-
   for(;;)
   {
-	 HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_2);
-     osDelay(200);
+	  suspendCount++;
+	  if (suspendCount == 10)
+	  {
+		  osThreadSuspend(usedTask2Handle);
+	  }
+	  osDelay(1000);
   }
-  /* USER CODE END Led_Blinky */
+  /* USER CODE END used_task1 */
+}
+
+/* USER CODE BEGIN Header_used_task2 */
+/**
+* @brief Function implementing the usedTask2 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_used_task2 */
+void used_task2(void const * argument)
+{
+  /* USER CODE BEGIN used_task2 */
+  /* Infinite loop */
+  for(;;)
+  {
+	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_2);
+	  osDelay(300);
+  }
+  /* USER CODE END used_task2 */
 }
 
 /**
