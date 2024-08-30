@@ -42,9 +42,9 @@
 
 /* Private variables ---------------------------------------------------------*/
 osThreadId defaultTaskHandle;
-osThreadId usedTask1Handle;
-osThreadId usedTask2Handle;
-osMessageQId msg_queueHandle;
+osThreadId ledOnHandle;
+osThreadId ledOffHandle;
+osSemaphoreId binarySemHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -52,9 +52,9 @@ osMessageQId msg_queueHandle;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-void StartDefaultTask(void const * argument);
-void used_task1(void const * argument);
-void used_task2(void const * argument);
+void DefaultTask(void const * argument);
+void LedOn(void const * argument);
+void LedOff(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -62,7 +62,6 @@ void used_task2(void const * argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint8_t suspendCount = 0;
 /* USER CODE END 0 */
 
 /**
@@ -102,6 +101,11 @@ int main(void)
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
+  /* Create the semaphores(s) */
+  /* definition and creation of binarySem */
+  osSemaphoreDef(binarySem);
+  binarySemHandle = osSemaphoreCreate(osSemaphore(binarySem), 1);
+
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
@@ -110,27 +114,22 @@ int main(void)
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
-  /* Create the queue(s) */
-  /* definition and creation of msg_queue */
-  osMessageQDef(msg_queue, 5, uint32_t);
-  msg_queueHandle = osMessageCreate(osMessageQ(msg_queue), NULL);
-
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  osThreadDef(defaultTask, DefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
-  /* definition and creation of usedTask1 */
-  osThreadDef(usedTask1, used_task1, osPriorityNormal, 0, 128);
-  usedTask1Handle = osThreadCreate(osThread(usedTask1), NULL);
+  /* definition and creation of ledOn */
+  osThreadDef(ledOn, LedOn, osPriorityNormal, 0, 128);
+  ledOnHandle = osThreadCreate(osThread(ledOn), NULL);
 
-  /* definition and creation of usedTask2 */
-  osThreadDef(usedTask2, used_task2, osPriorityNormal, 0, 128);
-  usedTask2Handle = osThreadCreate(osThread(usedTask2), NULL);
+  /* definition and creation of ledOff */
+  osThreadDef(ledOff, LedOff, osPriorityNormal, 0, 128);
+  ledOffHandle = osThreadCreate(osThread(ledOff), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -202,11 +201,17 @@ static void MX_GPIO_Init(void)
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_Status_GPIO_Port, LED_Status_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : User_KE_Pin */
+  GPIO_InitStruct.Pin = User_KE_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(User_KE_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED_Status_Pin */
   GPIO_InitStruct.Pin = LED_Status_Pin;
@@ -223,64 +228,65 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_DefaultTask */
 /**
   * @brief  Function implementing the defaultTask thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
+/* USER CODE END Header_DefaultTask */
+void DefaultTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+
+	  osDelay(1000);
   }
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_used_task1 */
+/* USER CODE BEGIN Header_LedOn */
 /**
-* @brief Function implementing the usedTask1 thread.
+* @brief Function implementing the ledOn thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_used_task1 */
-void used_task1(void const * argument)
+/* USER CODE END Header_LedOn */
+void LedOn(void const * argument)
 {
-  /* USER CODE BEGIN used_task1 */
+  /* USER CODE BEGIN LedOn */
   /* Infinite loop */
   for(;;)
   {
-	  suspendCount++;
-	  if (suspendCount == 10)
+	  if (osSemaphoreWait(binarySemHandle, osWaitForever) == osOK)
 	  {
-		  osThreadSuspend(usedTask2Handle);
+		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_RESET);
+		  osDelay(500);
 	  }
-	  osDelay(1000);
   }
-  /* USER CODE END used_task1 */
+  /* USER CODE END LedOn */
 }
 
-/* USER CODE BEGIN Header_used_task2 */
+/* USER CODE BEGIN Header_LedOff */
 /**
-* @brief Function implementing the usedTask2 thread.
+* @brief Function implementing the ledOff thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_used_task2 */
-void used_task2(void const * argument)
+/* USER CODE END Header_LedOff */
+void LedOff(void const * argument)
 {
-  /* USER CODE BEGIN used_task2 */
+  /* USER CODE BEGIN LedOff */
   /* Infinite loop */
   for(;;)
   {
-	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_2);
-	  osDelay(300);
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_SET);
+	  osSemaphoreRelease(binarySemHandle);
+	  osDelay(500);
   }
-  /* USER CODE END used_task2 */
+  /* USER CODE END LedOff */
 }
 
 /**
